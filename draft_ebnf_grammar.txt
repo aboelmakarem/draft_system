@@ -1,0 +1,50 @@
+letter = "A" | "B" | ... | "Z" | "a" | "b" | ... | "z" | "_".
+digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9".
+ident = letter {letter | digit}.
+qualident = [ident "."] ident.
+integer = digit {digit}.
+real = integer "." integer [ScaleFactor].
+ScaleFactor = "e" ("+" | "-") integer.
+number = integer | real.
+
+expression = SimpleExpression [relation SimpleExpression].
+relation = "==" | "!=" | "<" | "<=" | ">" | ">=".
+SimpleExpression = ["+" | "-"] term {AddOperator term}.
+AddOperator = "+" | "-" | OR.
+term = factor {MulOperator factor}.
+MulOperator = "*" | "/" | DIV | MOD | "&".
+factor = number | "null" | "true" | "false" | designator [ActualParameters] | "(" expression ")" | "not" factor.
+designator = qualident {selector}.
+ActualParameters = "(" [ExpList] ")" .
+selector = "." ident | "[" ExpList "]" | "^" | "(" qualident ")".
+ExpList = expression {"," expression}.
+
+StatementSequence = statement {";" statement}.
+statement = [assignment | ProcedureCall | IfStatement | WhileStatement | Write].
+assignment = designator "=" expression.
+ProcedureCall = designator [ActualParameters].
+IfStatement = "if" expression "{" StatementSequence "}" {"elseif" expression "{" StatementSequence "}"} ["else" "{" StatementSequence "}"].
+WhileStatement = "while" expression "{" StatementSequence "}".
+Write = "print" expression .
+
+ConstDeclaration = "const" ident "=" expression.
+TypeDeclaration = "type" ident "=" StrucType.
+StrucType = ArrayType | ClassType | ProcedureType.
+type = qualident | StrucType.
+ArrayType = "array" ExpList "of" type.
+ClassType = "class" ["(" qualident ")"] "{" [FieldListSequence] "}".
+FieldListSequence = VariableDeclaration {";" VariableDeclaration}.
+VariableDeclaration = IdentList ":" type.
+IdentList = ident {"," ident}.
+ProcedureType = "procedure" [FormalParameters].
+
+ProcedureDeclaration = "procedure" ident [FormalParameters] ProcedureBody.
+ProcedureBody = "{" [DeclarationSequence]  [StatementSequence] ["return" expression] "}".
+Declaration = ConstDeclaration  | TypeDeclaration | "var" VariableDeclaration | ProcedureDeclaration.
+DeclarationSequence = Declaration {";" Declaration}.
+FormalParameters = "(" [FormalParameterList] ")" [":" qualident].
+FormalParameterList = FormalParameter {"," FormalParameter}
+FormalParameter = Type ["#"] ident
+
+Program = "program" ident "{" [DeclarationSequence] [StatementSequence] "}" .
+
