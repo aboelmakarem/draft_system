@@ -88,7 +88,7 @@ namespace DraftCompiler
 				}
 				else
 				{
-					if(cReadCharacter == '/' && m_sSourceText[m_iReaderPosition + 1] == '/')
+					if(cReadCharacter == 47 && m_sSourceText[m_iReaderPosition + 1] == 47)
 					{
 						SkipComment();
 					}
@@ -221,7 +221,7 @@ namespace DraftCompiler
 		while(m_iReaderPosition < m_iSourceSize)
 		{
 			m_iReaderPosition++;
-			if((m_sSourceText[m_iReaderPosition] <= 10) && (m_sSourceText[m_iReaderPosition] >= 13))
+			if((m_sSourceText[m_iReaderPosition] >= 10) && (m_sSourceText[m_iReaderPosition] <= 13))
 			{
 				break;
 			}
