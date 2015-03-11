@@ -1304,12 +1304,18 @@ namespace DraftCompiler
 		poIfStatementNode->AddChild(poIfNode);
 		poIfStatementNode->AddChild(poExpression);
 		poIfStatementNode->AddChild(poOpenBracesNode);
-		poIfStatementNode->AddChild(poStatementSequence);
+		if(poStatementSequence != NULL)
+		{
+			poIfStatementNode->AddChild(poStatementSequence);
+		}
 		poIfStatementNode->AddChild(poCloseBracesNode);
 		poIfNode->SetParent(poIfStatementNode);
 		poExpression->SetParent(poIfStatementNode);
 		poOpenBracesNode->SetParent(poIfStatementNode);
-		poStatementSequence->SetParent(poIfStatementNode);
+		if(poStatementSequence != NULL)
+		{
+			poStatementSequence->SetParent(poIfStatementNode);
+		}
 		poCloseBracesNode->SetParent(poIfStatementNode);
 		// now look for any number of elseif statements
 		while(true)
@@ -1335,13 +1341,19 @@ namespace DraftCompiler
 			poIfStatementNode->AddChild(poIfNode);
 			poIfStatementNode->AddChild(poExpression);
 			poIfStatementNode->AddChild(poOpenBracesNode);
-			poIfStatementNode->AddChild(poStatementSequence);
+			if(poStatementSequence != NULL)
+			{
+				poIfStatementNode->AddChild(poStatementSequence);
+			}
 			poIfStatementNode->AddChild(poCloseBracesNode);
 			
 			poIfNode->SetParent(poIfStatementNode);
 			poExpression->SetParent(poIfStatementNode);
 			poOpenBracesNode->SetParent(poIfStatementNode);
-			poStatementSequence->SetParent(poIfStatementNode);
+			if(poStatementSequence != NULL)
+			{
+				poStatementSequence->SetParent(poIfStatementNode);
+			}
 			poCloseBracesNode->SetParent(poIfStatementNode);
 		}
 		
@@ -1366,12 +1378,18 @@ namespace DraftCompiler
 			
 			poIfStatementNode->AddChild(poIfNode);
 			poIfStatementNode->AddChild(poOpenBracesNode);
-			poIfStatementNode->AddChild(poStatementSequence);
+			if(poStatementSequence != NULL)
+			{
+				poIfStatementNode->AddChild(poStatementSequence);
+			}
 			poIfStatementNode->AddChild(poCloseBracesNode);
 			
 			poIfNode->SetParent(poIfStatementNode);
 			poOpenBracesNode->SetParent(poIfStatementNode);
-			poStatementSequence->SetParent(poIfStatementNode);
+			if(poStatementSequence != NULL)
+			{
+				poStatementSequence->SetParent(poIfStatementNode);
+			}
 			poCloseBracesNode->SetParent(poIfStatementNode);
 		}
 		return poIfStatementNode;
@@ -1411,12 +1429,18 @@ namespace DraftCompiler
 		poWhileStatementNode->AddChild(poWhileNode);
 		poWhileStatementNode->AddChild(poExpression);
 		poWhileStatementNode->AddChild(poOpenBracesNode);
-		poWhileStatementNode->AddChild(poStatementSequence);
+		if(poStatementSequence != NULL)
+		{
+			poWhileStatementNode->AddChild(poStatementSequence);
+		}
 		poWhileStatementNode->AddChild(poCloseBracesNode);
 		poWhileNode->SetParent(poWhileStatementNode);
 		poExpression->SetParent(poWhileStatementNode);
 		poOpenBracesNode->SetParent(poWhileStatementNode);
-		poStatementSequence->SetParent(poWhileStatementNode);
+		if(poStatementSequence != NULL)
+		{
+			poStatementSequence->SetParent(poStatementSequence);
+		}
 		poCloseBracesNode->SetParent(poWhileStatementNode);
 		return poWhileStatementNode;
 	}
@@ -1453,7 +1477,7 @@ namespace DraftCompiler
 	}
 	TreeNode<Token*>* Parser::ParseStatement(const unsigned int& iLevel)
 	{
-		// statement = [assignment | ProcedureCall | IfStatement | WhileStatement | Write].
+		// statement = [assignment | ProcedureCall | IfStatement | WhileStatement | Write]. ";"
 		unsigned int iOriginalPosition = m_iPosition;
 		Token* poFirstToken = GetToken();
 		TokenKind eKind = poFirstToken->GetKind();
@@ -1505,18 +1529,37 @@ namespace DraftCompiler
 				}
 			}
 		}
+		// now we have a statement, make sure that it is followed by a semicolon
+		Token* poSemiColonToken = GetToken();
+		if(poSemiColonToken->GetKind() != SemiColonToken)
+		{
+			m_iPosition = iOriginalPosition;
+			poSubNode->DeleteChildren();
+			delete poSubNode;
+			return NULL;
+		}
+		// all is ok, create the tree
+		IncrementPosition();
+		TreeNode<Token*>* poSemiColonNode = new TreeNode<Token*>;
+		poSemiColonNode->SetLevel(iLevel + 1);
+		poSemiColonNode->SetData(poSemiColonToken);
+		poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
+		poSemiColonNode->SetLeaf(true);
+			
 		TreeNode<Token*>* poStatementNode = new TreeNode<Token*>;
 		poStatementNode->SetLevel(iLevel);
 		poStatementNode->SetLabel("Statement");
 		poStatementNode->AddChild(poSubNode);
+		poStatementNode->AddChild(poSemiColonNode);
 		poSubNode->SetParent(poStatementNode);
+		poSemiColonNode->SetParent(poStatementNode);
 		return poStatementNode;
 	}
 	TreeNode<Token*>* Parser::ParseStatementSequence(const unsigned int& iLevel)
 	{
-		// StatementSequence = statement {";" statement}.
+		// StatementSequence = statement { statement }.
 		unsigned int iOriginalPosition = m_iPosition;
-		TreeNode<Token*>* poStatement = ParseStatement(iLevel + 1);		
+		TreeNode<Token*>* poStatement = ParseStatement(iLevel + 1);
 		if(poStatement == NULL)
 		{
 			m_iPosition = iOriginalPosition;
@@ -1524,49 +1567,16 @@ namespace DraftCompiler
 		}
 		list<TreeNode<Token*>*> lpoStatements;
 		lpoStatements.push_back(poStatement);
-		list<TreeNode<Token*>*> lpoSemiColonNodes;
-		Token* poSemiColonToken = NULL;
-		TreeNode<Token*>* poSemiColonNode = NULL;
+
 		while(true)
 		{
-			poSemiColonToken = GetToken();
-			if(poSemiColonToken->GetKind() != SemiColonToken)		break;
-			IncrementPosition();
 			poStatement = ParseStatement(iLevel + 1);
 			if(poStatement == NULL)
 			{
-				// reset position
-				m_iPosition = iOriginalPosition;
-				// delete all created nodes
-				while(!lpoStatements.empty())
-				{
-					poStatement = lpoStatements.front();
-					if(poStatement != NULL)
-					{
-						poStatement->DeleteChildren();
-						delete poStatement;
-					}
-					lpoStatements.pop_front();
-				}
-				while(!lpoSemiColonNodes.empty())
-				{
-					poSemiColonNode = lpoSemiColonNodes.front();
-					if(poSemiColonNode != NULL)
-					{
-						poSemiColonNode->DeleteChildren();
-						delete poSemiColonNode;
-					}
-					lpoSemiColonNodes.pop_front();
-				}
-				return NULL;
+				// either there are no statements to parse or there are ungrammatical statements.
+				// in both cases, break the loop and return what we have so far
+				break;
 			}
-			// found a semicolon followed by a statement, push them into the list
-			poSemiColonNode = new TreeNode<Token*>;
-			poSemiColonNode->SetLevel(iLevel + 1);
-			poSemiColonNode->SetData(poSemiColonToken);
-			poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
-			poSemiColonNode->SetLeaf(true);
-			lpoSemiColonNodes.push_back(poSemiColonNode);
 			lpoStatements.push_back(poStatement);
 		}
 		// now we have a list of expression nodes and a list of comma nodes
@@ -1582,12 +1592,7 @@ namespace DraftCompiler
 		poStatement->SetParent(poStatementSequenceNode);
 		// add the rest of the expressions and the commas to the parent node
 		while(!lpoStatements.empty())
-		{
-			poSemiColonNode = lpoSemiColonNodes.front();
-			lpoSemiColonNodes.pop_front();
-			poStatementSequenceNode->AddChild(poSemiColonNode);
-			poSemiColonNode->SetParent(poStatementSequenceNode);
-			
+		{			
 			poStatement = lpoStatements.front();
 			lpoStatements.pop_front();
 			poStatementSequenceNode->AddChild(poStatement);
@@ -1627,18 +1632,21 @@ namespace DraftCompiler
 			return false;
 		}
 		IncrementPosition();
+		bool bNoStatements = false;
 		poStatementSequence = ParseStatementSequence(iLevel);
 		if(poStatementSequence == NULL)
 		{
-			m_iPosition = iOriginalPosition;
-			return false;
+			bNoStatements = true;
 		}
 		Token* poCloseBracesToken = GetToken();
 		if(poCloseBracesToken->GetKind() != CurlyBracesCloseToken)
 		{
 			m_iPosition = iOriginalPosition;
-			poStatementSequence->DeleteChildren();
-			delete poStatementSequence;
+			if(!bNoStatements)
+			{
+				poStatementSequence->DeleteChildren();
+				delete poStatementSequence;
+			}
 			return false;
 		}
 		IncrementPosition();		
@@ -2058,7 +2066,7 @@ namespace DraftCompiler
 	}
 	TreeNode<Token*>* Parser::ParseFieldListSequence(const unsigned int& iLevel)
 	{
-		// FieldListSequence = VariableDeclaration {";" VariableDeclaration}.
+		// FieldListSequence = VariableDeclaration {VariableDeclaration}.
 		unsigned int iOriginalPosition = m_iPosition;
 		TreeNode<Token*>* poVariableDeclaration = ParseVarDeclaration(iLevel + 1);		
 		if(poVariableDeclaration == NULL)
@@ -2068,49 +2076,14 @@ namespace DraftCompiler
 		}
 		list<TreeNode<Token*>*> lpoFieldLists;
 		lpoFieldLists.push_back(poVariableDeclaration);
-		list<TreeNode<Token*>*> lpoSemiColonNodes;
-		Token* poSemiColonToken = NULL;
-		TreeNode<Token*>* poSemiColonNode = NULL;
 		while(true)
 		{
-			poSemiColonToken = GetToken();
-			if(poSemiColonToken->GetKind() != SemiColonToken)		break;
-			IncrementPosition();
 			poVariableDeclaration = ParseVarDeclaration(iLevel + 1);
 			if(poVariableDeclaration == NULL)
 			{
-				// reset position
-				m_iPosition = iOriginalPosition;
-				// delete all created nodes
-				while(!lpoFieldLists.empty())
-				{
-					poVariableDeclaration = lpoFieldLists.front();
-					if(poVariableDeclaration != NULL)
-					{
-						poVariableDeclaration->DeleteChildren();
-						delete poVariableDeclaration;
-					}
-					lpoFieldLists.pop_front();
-				}
-				while(!lpoSemiColonNodes.empty())
-				{
-					poSemiColonNode = lpoSemiColonNodes.front();
-					if(poSemiColonNode != NULL)
-					{
-						poSemiColonNode->DeleteChildren();
-						delete poSemiColonNode;
-					}
-					lpoSemiColonNodes.pop_front();
-				}
-				return NULL;
+				break;
 			}
 			// found a semicolon followed by a statement, push them into the list
-			poSemiColonNode = new TreeNode<Token*>;
-			poSemiColonNode->SetLevel(iLevel + 1);
-			poSemiColonNode->SetData(poSemiColonToken);
-			poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
-			poSemiColonNode->SetLeaf(true);
-			lpoSemiColonNodes.push_back(poSemiColonNode);
 			lpoFieldLists.push_back(poVariableDeclaration);
 		}
 		// now we have a list of field list nodes and a list of semi-colon nodes
@@ -2127,11 +2100,6 @@ namespace DraftCompiler
 		// add the rest of the expressions and the commas to the parent node
 		while(!lpoFieldLists.empty())
 		{
-			poSemiColonNode = lpoSemiColonNodes.front();
-			lpoSemiColonNodes.pop_front();
-			poFieldListSequenceNode->AddChild(poSemiColonNode);
-			poSemiColonNode->SetParent(poFieldListSequenceNode);
-			
 			poVariableDeclaration = lpoFieldLists.front();
 			lpoFieldLists.pop_front();
 			poFieldListSequenceNode->AddChild(poVariableDeclaration);
@@ -2141,7 +2109,7 @@ namespace DraftCompiler
 	}
 	TreeNode<Token*>* Parser::ParseVarDeclaration(const unsigned int& iLevel)
 	{
-		// FieldList = IdentList ":" type.
+		// VariableDeclaration = IdentList ":" type ";".
 		unsigned int iOriginalPosition = m_iPosition;
 		TreeNode<Token*>* poIdentifierList = ParseIdentifierList(iLevel + 1);
 		if(poIdentifierList == NULL)
@@ -2167,12 +2135,31 @@ namespace DraftCompiler
 			delete poIdentifierList;
 			return NULL;
 		}
+		
+		Token* poSemiColonToken = GetToken();
+		if(poSemiColonToken->GetKind() != SemiColonToken)
+		{
+			m_iPosition = iOriginalPosition;
+			poIdentifierList->DeleteChildren();
+			delete poIdentifierList;
+			poType->DeleteChildren();
+			delete poType;
+			return NULL;
+		}
+		IncrementPosition();
+		
 		// now we have everything, build the tree
 		TreeNode<Token*>* poColonNode = new TreeNode<Token*>;
 		poColonNode->SetLevel(iLevel + 1);
 		poColonNode->SetData(poColonToken);
 		poColonNode->SetLabel(poColonToken->GeneratePrintString());
 		poColonNode->SetLeaf(true);
+		
+		TreeNode<Token*>* poSemiColonNode = new TreeNode<Token*>;
+		poSemiColonNode->SetLevel(iLevel + 1);
+		poSemiColonNode->SetData(poSemiColonToken);
+		poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
+		poSemiColonNode->SetLeaf(true);
 		
 		TreeNode<Token*>* poVarDeclaration = new TreeNode<Token*>;
 		poVarDeclaration->SetLevel(iLevel);
@@ -2181,10 +2168,12 @@ namespace DraftCompiler
 		poVarDeclaration->AddChild(poIdentifierList);
 		poVarDeclaration->AddChild(poColonNode);
 		poVarDeclaration->AddChild(poType);
+		poVarDeclaration->AddChild(poSemiColonNode);
 		
 		poIdentifierList->SetParent(poVarDeclaration);
 		poColonNode->SetParent(poVarDeclaration);
 		poType->SetParent(poVarDeclaration);
+		poSemiColonNode->SetParent(poVarDeclaration);
 		
 		return poVarDeclaration;
 	}
@@ -2421,7 +2410,7 @@ namespace DraftCompiler
 	}
 	TreeNode<Token*>* Parser::ParseConstDeclaration(const unsigned int& iLevel)
 	{
-		// ConstDeclaration = "const" ident "=" expression.
+		// ConstDeclaration = "const" ident "=" expression ";". 
 		unsigned int iOriginalPosition = m_iPosition;
 		Token* poConstToken = GetToken();
 		if(poConstToken->GetKind() != ConstToken)
@@ -2454,6 +2443,17 @@ namespace DraftCompiler
 			m_iPosition = iOriginalPosition;
 			return NULL;
 		}
+		
+		Token* poSemiColonToken = GetToken();
+		if(poSemiColonToken->GetKind() != SemiColonToken)
+		{
+			m_iPosition = iOriginalPosition;
+			poExpression->DeleteChildren();
+			delete poExpression;
+			return NULL;
+		}
+		IncrementPosition();
+		
 		// build the tree
 		TreeNode<Token*>* poConstNode = new TreeNode<Token*>;
 		poConstNode->SetLevel(iLevel + 1);
@@ -2472,7 +2472,13 @@ namespace DraftCompiler
 		poAssignNode->SetData(poEqualToken);
 		poAssignNode->SetLabel(poEqualToken->GeneratePrintString());
 		poAssignNode->SetLeaf(true);
-			
+		
+		TreeNode<Token*>* poSemiColonNode = new TreeNode<Token*>;
+		poSemiColonNode->SetLevel(iLevel + 1);
+		poSemiColonNode->SetData(poSemiColonToken);
+		poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
+		poSemiColonNode->SetLeaf(true);
+		
 		TreeNode<Token*>* poConstDeclaration = new TreeNode<Token*>;
 		poConstDeclaration->SetLevel(iLevel);
 		poConstDeclaration->SetLabel("ConstDeclaration");
@@ -2480,17 +2486,19 @@ namespace DraftCompiler
 		poConstDeclaration->AddChild(poIdentifierNode);
 		poConstDeclaration->AddChild(poAssignNode);
 		poConstDeclaration->AddChild(poExpression);
+		poConstDeclaration->AddChild(poSemiColonNode);
 		
 		poConstNode->SetParent(poConstDeclaration);
 		poIdentifierNode->SetParent(poConstDeclaration);
 		poAssignNode->SetParent(poConstDeclaration);
 		poExpression->SetParent(poConstDeclaration);
+		poSemiColonNode->SetParent(poConstDeclaration);
 		
 		return poConstDeclaration;
 	}
 	TreeNode<Token*>* Parser::ParseTypeDeclaration(const unsigned int& iLevel)
 	{
-		// TypeDeclaration = "type" ident "=" StrucType.
+		// TypeDeclaration = "type" ident "=" StrucType ";".
 		unsigned int iOriginalPosition = m_iPosition;
 		Token* poTypeToken = GetToken();
 		if(poTypeToken->GetKind() != TypeToken)
@@ -2523,6 +2531,17 @@ namespace DraftCompiler
 			m_iPosition = iOriginalPosition;
 			return NULL;
 		}
+		
+		Token* poSemiColonToken = GetToken();
+		if(poSemiColonToken->GetKind() != SemiColonToken)
+		{
+			m_iPosition = iOriginalPosition;
+			poStructuredType->DeleteChildren();
+			delete poStructuredType;
+			return NULL;
+		}
+		IncrementPosition();
+		
 		// build the tree
 		TreeNode<Token*>* poTypeNode = new TreeNode<Token*>;
 		poTypeNode->SetLevel(iLevel + 1);
@@ -2541,6 +2560,12 @@ namespace DraftCompiler
 		poAssignNode->SetData(poEqualToken);
 		poAssignNode->SetLabel(poEqualToken->GeneratePrintString());
 		poAssignNode->SetLeaf(true);
+		
+		TreeNode<Token*>* poSemiColonNode = new TreeNode<Token*>;
+		poSemiColonNode->SetLevel(iLevel + 1);
+		poSemiColonNode->SetData(poSemiColonToken);
+		poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
+		poSemiColonNode->SetLeaf(true);
 			
 		TreeNode<Token*>* poTypeDeclaration = new TreeNode<Token*>;
 		poTypeDeclaration->SetLevel(iLevel);
@@ -2549,17 +2574,19 @@ namespace DraftCompiler
 		poTypeDeclaration->AddChild(poIdentifierNode);
 		poTypeDeclaration->AddChild(poAssignNode);
 		poTypeDeclaration->AddChild(poStructuredType);
+		poTypeDeclaration->AddChild(poSemiColonNode);
 		
 		poTypeNode->SetParent(poTypeDeclaration);
 		poIdentifierNode->SetParent(poTypeDeclaration);
 		poAssignNode->SetParent(poTypeDeclaration);
 		poStructuredType->SetParent(poTypeDeclaration);
+		poSemiColonNode->SetParent(poTypeDeclaration);
 		
 		return poTypeDeclaration;
 	}
 	TreeNode<Token*>* Parser::ParseProcedureDeclaration(const unsigned int& iLevel)
 	{
-		// ProcedureDeclaration = "procedure" ident [FormalParameters] ProcedureBody.
+		// ProcedureDeclaration = "procedure" ident [FormalParameters] ProcedureBody ";".
 		unsigned int iOriginalPosition = m_iPosition;
 		Token* poProcedureToken = GetToken();
 		if(poProcedureToken->GetKind() != ProcedureToken)
@@ -2595,6 +2622,22 @@ namespace DraftCompiler
 			}
 			return NULL;
 		}
+		
+		Token* poSemiColonToken = GetToken();
+		if(poSemiColonToken->GetKind() != SemiColonToken)
+		{
+			m_iPosition = iOriginalPosition;
+			if(!bNoParameters)
+			{
+				poParameters->DeleteChildren();
+				delete poParameters;
+			}
+			poBody->DeleteChildren();
+			delete poBody;
+			return NULL;
+		}
+		IncrementPosition();
+		
 		// build the tree
 		TreeNode<Token*>* poProcedureNode = new TreeNode<Token*>;
 		poProcedureNode->SetLevel(iLevel + 1);
@@ -2607,6 +2650,12 @@ namespace DraftCompiler
 		poIdentifierNode->SetData(poIdentifierToken);
 		poIdentifierNode->SetLabel(poIdentifierToken->GeneratePrintString());
 		poIdentifierNode->SetLeaf(true);
+		
+		TreeNode<Token*>* poSemiColonNode = new TreeNode<Token*>;
+		poSemiColonNode->SetLevel(iLevel + 1);
+		poSemiColonNode->SetData(poSemiColonToken);
+		poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
+		poSemiColonNode->SetLeaf(true);
 		
 		TreeNode<Token*>* poProcedureDeclaration = new TreeNode<Token*>;
 		poProcedureDeclaration->SetLevel(iLevel);
@@ -2622,6 +2671,9 @@ namespace DraftCompiler
 		}
 		poProcedureDeclaration->AddChild(poBody);
 		poBody->SetParent(poProcedureDeclaration);
+		
+		poProcedureDeclaration->AddChild(poSemiColonNode);
+		poSemiColonNode->SetParent(poProcedureDeclaration);
 		
 		return poProcedureDeclaration;
 	}
@@ -2699,7 +2751,7 @@ namespace DraftCompiler
 	}
 	TreeNode<Token*>* Parser::ParseDeclarationSequence(const unsigned int& iLevel)
 	{
-		// DeclarationSequence = Declaration {";" Declaration}.
+		// DeclarationSequence = Declaration { Declaration}.
 		unsigned int iOriginalPosition = m_iPosition;
 		TreeNode<Token*>* poDeclaration = ParseDeclaration(iLevel + 1);		
 		if(poDeclaration == NULL)
@@ -2709,49 +2761,13 @@ namespace DraftCompiler
 		}
 		list<TreeNode<Token*>*> lpoDeclarations;
 		lpoDeclarations.push_back(poDeclaration);
-		list<TreeNode<Token*>*> lpoSemiColonNodes;
-		Token* poSemiColonToken = NULL;
-		TreeNode<Token*>* poSemiColonNode = NULL;
 		while(true)
 		{
-			poSemiColonToken = GetToken();
-			if(poSemiColonToken->GetKind() != SemiColonToken)		break;
-			IncrementPosition();
 			poDeclaration = ParseDeclaration(iLevel + 1);
 			if(poDeclaration == NULL)
 			{
-				// reset position
-				m_iPosition = iOriginalPosition;
-				// delete all created nodes
-				while(!lpoDeclarations.empty())
-				{
-					poDeclaration = lpoDeclarations.front();
-					if(poDeclaration != NULL)
-					{
-						poDeclaration->DeleteChildren();
-						delete poDeclaration;
-					}
-					lpoDeclarations.pop_front();
-				}
-				while(!lpoSemiColonNodes.empty())
-				{
-					poSemiColonNode = lpoSemiColonNodes.front();
-					if(poSemiColonNode != NULL)
-					{
-						poSemiColonNode->DeleteChildren();
-						delete poSemiColonNode;
-					}
-					lpoSemiColonNodes.pop_front();
-				}
-				return NULL;
+				break;
 			}
-			// found a semicolon followed by a statement, push them into the list
-			poSemiColonNode = new TreeNode<Token*>;
-			poSemiColonNode->SetLevel(iLevel + 1);
-			poSemiColonNode->SetData(poSemiColonToken);
-			poSemiColonNode->SetLabel(poSemiColonToken->GeneratePrintString());
-			poSemiColonNode->SetLeaf(true);
-			lpoSemiColonNodes.push_back(poSemiColonNode);
 			lpoDeclarations.push_back(poDeclaration);
 		}
 		// now we have a list of expression nodes and a list of comma nodes
@@ -2768,11 +2784,6 @@ namespace DraftCompiler
 		// add the rest of the expressions and the commas to the parent node
 		while(!lpoDeclarations.empty())
 		{
-			poSemiColonNode = lpoSemiColonNodes.front();
-			lpoSemiColonNodes.pop_front();
-			poDeclarationSequenceNode->AddChild(poSemiColonNode);
-			poSemiColonNode->SetParent(poDeclarationSequenceNode);
-			
 			poDeclaration = lpoDeclarations.front();
 			lpoDeclarations.pop_front();
 			poDeclarationSequenceNode->AddChild(poDeclaration);
